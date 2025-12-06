@@ -7,6 +7,37 @@ This action:
 - Sends them to a GitHub-hosted LLM (`openai/gpt-4o-mini` by default)
 - Produces a grouped, human-readable changelog in Markdown
 
+## Usage
+
+Create a workflow file (e.g. `.github/workflows/changelog.yml`):
+
+```yaml
+name: AI Changelog
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Generate Changelog
+        uses: decoded-cipher/auto-changelog@v1.0.0
+        with:
+          output_path: CHANGELOG.md
+```
+
 ## Inputs
 
 - `range` (optional): git revision range, e.g. `v1.0.0..HEAD`.  

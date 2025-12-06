@@ -1,0 +1,8 @@
+{
+    "name": "AI Generated Changelog",
+    "description": "Generate a human-friendly changelog from git history using GitHub Models.",
+    "iconName": "book-open",
+    "categories": [
+        "Utilities"
+    ]
+}

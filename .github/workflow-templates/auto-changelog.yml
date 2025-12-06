@@ -1,0 +1,43 @@
+name: AI Generated Changelog
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate AI Changelog
+        uses: decoded-cipher/auto-changelog@v1.0.0
+        with:
+          output_path: CHANGELOG.md
+          model: openai/gpt-4o-mini
+
+      - name: Commit and push changelog
+        if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+        run: |
+          # Force-add the changelog even if it's in .gitignore
+          git add -f CHANGELOG.md
+
+          # Check if there is anything staged
+          if git diff --cached --quiet; then
+            echo "No staged changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "chore: update changelog [skip ci]"
+          git push
