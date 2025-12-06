@@ -1,8 +1,6 @@
 name: "AI Changelog (GitHub Models)"
-description: >
-  Generate a human-friendly changelog from git history using GitHub Models.
-  No external API keys needed — uses the repository's GITHUB_TOKEN.
-author: "Arjun / decoded-cipher"
+description: "Generate a human-friendly changelog from git history using GitHub Models. No external API keys needed."
+author: "Arjun Krishna / decoded-cipher"
 
 branding:
   icon: "book-open"
@@ -18,7 +16,7 @@ inputs:
   output_path:
     description: "File path to write changelog markdown to."
     required: false
-    default: "CHANGELOG_AI.md"
+    default: "CHANGELOG.md"
   model:
     description: "GitHub Models ID (e.g. openai/gpt-4o-mini)."
     required: false
@@ -99,7 +97,7 @@ runs:
         cat "$COMMITS_FILE" >> "$PROMPT_FILE"
 
         # Build JSON payload using jq
-        PAYLOAD_FILE=".ai-changelog-payload.json"
+        PAYLOAD_FILE=".changelog-payload.json"
         jq -Rs --arg model "$MODEL_ID" '
           {
             model: $model,
