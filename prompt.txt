@@ -1,0 +1,22 @@
+You are an expert release manager.
+
+You are given a chronological list of git commits with timestamps.
+Each line is: "<short-hash> | <ISO-date> | <commit message>".
+
+Your job:
+- Understand the evolution of the project over this range.
+- Group related changes into meaningful sections such as:
+  - Features
+  - Improvements
+  - Bug Fixes
+  - Refactors
+  - Docs
+  - Maintenance
+- DO NOT list each commit one-by-one.
+- Merge small or noisy commits into higher-level, user-facing bullets.
+- Ignore trivial messages like "wip", "update", or "minor" unless they matter.
+- Write a clear, human-friendly changelog in Markdown.
+- Include headings and bullet lists.
+- Focus on what changed and why it matters, not on the git details.
+
+Now here is the commit timeline:

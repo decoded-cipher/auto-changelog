@@ -1,0 +1,141 @@
+name: "AI Changelog (GitHub Models)"
+description: >
+  Generate a human-friendly changelog from git history using GitHub Models.
+  No external API keys needed — uses the repository's GITHUB_TOKEN.
+author: "Arjun / decoded-cipher"
+
+branding:
+  icon: "book-open"
+  color: "blue"
+
+inputs:
+  range:
+    description: >
+      Git revision range (e.g. v1.0.0..HEAD). 
+      If empty, uses last tag..HEAD, or HEAD if no tags.
+    required: false
+    default: ""
+  output_path:
+    description: "File path to write changelog markdown to."
+    required: false
+    default: "CHANGELOG_AI.md"
+  model:
+    description: "GitHub Models ID (e.g. openai/gpt-4o-mini)."
+    required: false
+    default: "openai/gpt-4o-mini"
+
+outputs:
+  changelog:
+    description: "Generated changelog markdown."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure jq is installed
+      shell: bash
+      run: |
+        set -e
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "jq not found, installing..."
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+        fi
+
+    - name: Generate changelog with GitHub Models
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        INPUT_RANGE: ${{ inputs.range }}
+        OUTPUT_PATH: ${{ inputs.output_path }}
+        MODEL_ID: ${{ inputs.model }}
+        PROMPT_PATH: ${{ github.action_path }}/prompt.txt
+      run: |
+        set -euo pipefail
+
+        if [ -z "${GITHUB_TOKEN:-}" ]; then
+          echo "GITHUB_TOKEN is not available. Make sure permissions.models=read is set."
+          exit 1
+        fi
+
+        # Decide git range
+        RANGE="$INPUT_RANGE"
+        if [ -z "$RANGE" ]; then
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+        fi
+
+        echo "Using git range: $RANGE"
+
+        # Collect commit history (hash | date | subject)
+        COMMITS_FILE=".ai-changelog-commits.txt"
+        git log "$RANGE" --pretty=format:"%h | %ad | %s" --date=iso > "$COMMITS_FILE" || true
+
+        if [ ! -s "$COMMITS_FILE" ]; then
+          echo "No commits found for range: $RANGE"
+          echo "No changes." > "$OUTPUT_PATH"
+          {
+            echo "changelog<<EOF"
+            echo "No changes."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Build prompt file
+        PROMPT_FILE=".ai-changelog-prompt.txt"
+        
+        if [ -f "$PROMPT_PATH" ]; then
+          cat "$PROMPT_PATH" > "$PROMPT_FILE"
+        else
+          echo "Error: Prompt file not found at $PROMPT_PATH"
+          exit 1
+        fi
+
+        echo "" >> "$PROMPT_FILE"
+        cat "$COMMITS_FILE" >> "$PROMPT_FILE"
+
+        # Build JSON payload using jq
+        PAYLOAD_FILE=".ai-changelog-payload.json"
+        jq -Rs --arg model "$MODEL_ID" '
+          {
+            model: $model,
+            messages: [
+              {
+                role: "user",
+                content: .
+              }
+            ]
+          }
+        ' "$PROMPT_FILE" > "$PAYLOAD_FILE"
+
+        # Call GitHub Models API
+        RESPONSE_FILE=".ai-changelog-response.json"
+
+        curl -sS "https://models.github.ai/inference/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -d @"$PAYLOAD_FILE" > "$RESPONSE_FILE"
+
+        # Extract the content
+        CHANGELOG_CONTENT=$(jq -r '.choices[0].message.content // empty' "$RESPONSE_FILE")
+
+        if [ -z "$CHANGELOG_CONTENT" ]; then
+          echo "Model returned empty content or unexpected response:"
+          cat "$RESPONSE_FILE"
+          exit 1
+        fi
+
+        # Write to output file
+        echo "$CHANGELOG_CONTENT" > "$OUTPUT_PATH"
+        echo "Changelog written to $OUTPUT_PATH"
+
+        # Expose as action output
+        {
+          echo "changelog<<EOF"
+          echo "$CHANGELOG_CONTENT"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
