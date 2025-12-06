@@ -5,18 +5,45 @@ Each line is: "<short-hash> | <ISO-date> | <commit message>".
 
 Your job:
 - Understand the evolution of the project over this range.
-- Group related changes into meaningful sections such as:
-  - Features
-  - Improvements
-  - Bug Fixes
-  - Refactors
-  - Docs
-  - Maintenance
-- DO NOT list each commit one-by-one.
-- Merge small or noisy commits into higher-level, user-facing bullets.
-- Ignore trivial messages like "wip", "update", or "minor" unless they matter.
-- Write a clear, human-friendly changelog in Markdown.
-- Include headings and bullet lists.
-- Focus on what changed and why it matters, not on the git details.
+- Merge related commits into higher-level, user-facing changes.
+- Ignore trivial messages like "wip", "update", "minor", "cleanup", unless they clearly represent a real feature or fix.
+- Focus on what changed and why it matters, not on the git noise.
 
-Now here is the commit timeline:
+You MUST produce a clean, chronological TIMELINE of changes that is EASY TO PARSE BY A PROGRAM.
+
+OUTPUT FORMAT (MANDATORY, STRICT)
+- You MUST output ONLY a single Markdown table.
+- The table MUST have EXACTLY 4 columns, in this order, with EXACTLY these lowercase headers:
+
+  | date | type | area | summary |
+
+- The second line MUST be the Markdown separator row:
+
+  |---|---|---|---|
+
+- Each subsequent row MUST represent one meaningful change.
+
+Column rules:
+- "date": the date of the change, in YYYY-MM-DD format, based on the commit dates. Use the earliest relevant commit for that change.
+- "type": one of ONLY these values (lowercase):
+  - feature
+  - improvement
+  - fix
+  - refactor
+  - docs
+  - maintenance
+- "area": a very short scope like "api", "frontend", "worker", "infra", "db", "auth", etc. If unclear, use "-".
+- "summary": a concise, human-friendly description (1–2 sentences) of the change, in plain text.
+
+Additional rules:
+- Sort rows in chronological order from oldest to newest (timeline).
+- DO NOT output any headings, paragraphs, bullets, comments, or explanations.
+- DO NOT wrap the table in code fences (no ```).
+- DO NOT include extra blank lines before or after the table.
+- The ENTIRE response MUST be only that single table. NOTHING MORE, NOTHING LESS.
+
+If there are no meaningful changes, output a table with a single row where:
+- date = today's date,
+- type = "maintenance",
+- area = "-",
+- summary = "No significant changes."
