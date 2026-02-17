@@ -21,6 +21,18 @@ inputs:
     description: "GitHub Models ID (e.g. openai/gpt-4o-mini)."
     required: false
     default: "openai/gpt-4o-mini"
+  create_pr:
+    description: "If true, use a dedicated branch, commit changelog, push, and create/update a PR to the base branch (no direct push to base)."
+    required: false
+    default: "false"
+  changelog_branch:
+    description: "Branch to use for changelog commits when create_pr is true."
+    required: false
+    default: "auto/changelog"
+  base_branch:
+    description: "Base branch to merge into the changelog branch and to open the PR into (e.g. master)."
+    required: false
+    default: "master"
 
 outputs:
   changelog:
@@ -46,6 +58,9 @@ runs:
         INPUT_RANGE: ${{ inputs.range }}
         OUTPUT_PATH: ${{ inputs.output_path }}
         MODEL_ID: ${{ inputs.model }}
+        CREATE_PR: ${{ inputs.create_pr }}
+        CHANGELOG_BRANCH: ${{ inputs.changelog_branch }}
+        BASE_BRANCH: ${{ inputs.base_branch }}
         PROMPT_PATH: ${{ github.action_path }}/prompt.txt
       run: |
         set -euo pipefail
@@ -53,6 +68,20 @@ runs:
         if [ -z "${GITHUB_TOKEN:-}" ]; then
           echo "GITHUB_TOKEN is not available. Make sure permissions.models=read is set."
           exit 1
+        fi
+
+        # Optional: use changelog branch and sync with base (for create_pr mode)
+        if [ "${CREATE_PR}" = "true" ]; then
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$BASE_BRANCH"
+          if git show-ref --quiet refs/remotes/origin/"$CHANGELOG_BRANCH"; then
+            git fetch origin "$CHANGELOG_BRANCH"
+            git checkout -B "$CHANGELOG_BRANCH" origin/"$CHANGELOG_BRANCH"
+            git merge origin/"$BASE_BRANCH" --no-edit
+          else
+            git checkout -b "$CHANGELOG_BRANCH"
+          fi
         fi
 
         # Decide git range
@@ -85,14 +114,12 @@ runs:
 
         # Build prompt file
         PROMPT_FILE=".ai-changelog-prompt.txt"
-        
         if [ -f "$PROMPT_PATH" ]; then
           cat "$PROMPT_PATH" > "$PROMPT_FILE"
         else
           echo "Error: Prompt file not found at $PROMPT_PATH"
           exit 1
         fi
-
         echo "" >> "$PROMPT_FILE"
         cat "$COMMITS_FILE" >> "$PROMPT_FILE"
 
@@ -112,7 +139,6 @@ runs:
 
         # Call GitHub Models API
         RESPONSE_FILE=".ai-changelog-response.json"
-
         curl -sS "https://models.github.ai/inference/chat/completions" \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -137,3 +163,20 @@ runs:
           echo "$CHANGELOG_CONTENT"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
+
+        # Optional: commit, push and create PR
+        if [ "${CREATE_PR}" = "true" ]; then
+          git add "$OUTPUT_PATH"
+          if git diff --staged --quiet; then
+            echo "No changelog changes to commit."
+          else
+            git commit -m "chore: update $OUTPUT_PATH [skip ci]"
+            git push origin "$CHANGELOG_BRANCH"
+          fi
+          gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$CHANGELOG_BRANCH" \
+            --title "chore: update $OUTPUT_PATH" \
+            --body "Auto-generated changelog from recent commits. Review and merge when ready." \
+            || true
+        fi
